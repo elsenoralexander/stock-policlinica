@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Stock - Policlínica</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        /* Estilos personalizados para el efecto glassmorphism y la tipografía */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        /* Ocultar flechas en input de tipo number */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          -webkit-appearance: none; 
+          margin: 0; 
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+        #search-bar::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
+
+    <h1 class="text-4xl md:text-5xl font-bold text-white mb-6 text-center shadow-lg">Gestión de Stock de Electromedicina</h1>
+
+    <div id="app-container" class="w-full max-w-2xl glass-container rounded-2xl shadow-2xl p-6 md:p-8">
+        
+        <!-- Vista de la lista de artículos -->
+        <div id="list-view">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <h2 class="text-2xl font-bold">Inventario General</h2>
+                <input type="search" id="search-bar" placeholder="Buscar por nombre o referencia..." class="w-full sm:w-64 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/50 transition">
+            </div>
+            <div id="item-list" class="space-y-3">
+                <p id="loading-message">Cargando datos del inventario...</p>
+            </div>
+        </div>
+
+        <!-- Vista de edición de un artículo -->
+        <div id="edit-view" class="hidden">
+            <div class="text-center mb-8">
+                <h2 id="item-name" class="text-3xl font-extrabold">Nombre del Artículo</h2>
+                <p id="item-ref" class="text-lg opacity-80">REF-12345</p>
+            </div>
+            <div class="flex items-center justify-center space-x-6 my-8">
+                <button id="decrease-btn" class="bg-red-500/80 hover:bg-red-600/80 w-20 h-20 rounded-full flex items-center justify-center text-6xl font-light transition-transform transform hover:scale-110 shadow-lg">-</button>
+                <div id="stock-count" class="text-8xl md:text-9xl font-black" style="min-width: 150px; text-align: center;">0</div>
+                <button id="increase-btn" class="bg-green-500/80 hover:bg-green-600/80 w-20 h-20 rounded-full flex items-center justify-center text-6xl font-light transition-transform transform hover:scale-110 shadow-lg">+</button>
+            </div>
+            <div class="mt-12 flex flex-col items-center space-y-4">
+                 <button id="save-btn" class="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors shadow-xl">Guardar Cambios</button>
+                 <button id="back-btn-from-edit" class="w-full max-w-xs bg-gray-500/50 hover:bg-gray-600/50 text-white font-bold py-2 px-4 rounded-lg transition-colors">Volver al Inventario</button>
+            </div>
+        </div>
+
+        <!-- Vista del historial de movimientos -->
+        <div id="history-view" class="hidden">
+             <div class="mb-6">
+                <h2 class="text-2xl font-bold">Historial de Movimientos</h2>
+                <p id="history-item-name" class="opacity-80"></p>
+            </div>
+            <div id="history-list" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                <!-- El historial se cargará aquí -->
+            </div>
+            <div class="mt-8 flex justify-center">
+                <button id="back-btn-from-history" class="w-full max-w-xs bg-gray-500/50 hover:bg-gray-600/50 text-white font-bold py-2 px-4 rounded-lg transition-colors">Volver al Inventario</button>
+            </div>
+        </div>
+
+    </div>
+
+    <footer class="mt-8 text-center text-white/70">
+        <p>&copy;2025 Gestión Stock Policlinica</p>
+    </footer>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Importaciones de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, doc, onSnapshot, updateDoc, writeBatch, Timestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- CONFIGURACIÓN ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : { apiKey: "TU_API_KEY", authDomain: "TU_AUTH_DOMAIN", projectId: "TU_PROJECT_ID" };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // --- ESTADO DE LA APLICACIÓN ---
+        let currentUserId = null;
+        let stockCollectionRef = null;
+        let currentItem = null;
+        let tempStock = 0;
+        let unsubscribe = null;
+        let allItems = []; // Almacena todos los artículos para la búsqueda
+
+        // --- DATOS INICIALES (con marca y proveedor) ---
+        const initialStockData = [
+            { nfcId: 'NFC-XBOR180W-45C', nombre: 'LAMPARA MICROSCOPIO NEURO (PANTALLA)', referencia: 'XBOR180W-45C', stock: 1, marca: 'OSRAM', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-6834FO:PH', nombre: 'LAMPARA MICROSCOPIO OJOS', referencia: '6834FO:PH', stock: 7, marca: 'PHILIPS', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-ECL0001:ALM', nombre: 'LAMPARA PRISMALIX (Q3-Q4-Q5-Q8)', referencia: 'ECL0001:ALM', stock: 14, marca: 'MAQUET', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-369009900:MAQ', nombre: 'LAMPARA HANAULUX (Q OBSTETRICO)', referencia: '369009900:MAQ', stock: 5, marca: 'MAQUET', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-ARD568805501', nombre: 'PANEL TACTIL LAMPARAS VOLISTA', referencia: 'ARD568805501', stock: 1, marca: 'GETINGE', proveedor: 'GETINGE' },
+            { nfcId: 'NFC-113390AE', nombre: 'MANDO CABLE MESA ALPHAMAX', referencia: '113390AE', stock: 0, marca: 'GETINGE', proveedor: 'GETINGE' },
+            { nfcId: 'NFC-720090A0', nombre: 'MANDO CABLE MESA MEERA', referencia: '720090A0', stock: 1, marca: 'GETINGE', proveedor: 'GETINGE' },
+            { nfcId: 'NFC-PINCHO-STERIS', nombre: 'PINCHO STERIS', referencia: 'N/A', stock: 4, marca: 'STERIS', proveedor: 'SUMISAN' },
+            { nfcId: 'NFC-59-01-011', nombre: 'CABLE TRONCAL ECG EQUIPO REHABILITACIÓN CARDIACA', referencia: '59-01-011', stock: 5, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-22-30-030', nombre: 'SENSOR PULSI DEDO REHABILITACIÓN CARDICA', referencia: '22-30-030', stock: 3, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-17-01-001', nombre: 'PETACA - ECG BLUETOOTH CON 1 CINTURON', referencia: '17-01-001', stock: 1, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-90-40-001', nombre: 'Cinturón negro para ecg bluetooth', referencia: '90-40-001', stock: 2, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-X-001.88.059', nombre: 'BOMBILLA PARA PALAS DE LARINGO', referencia: 'X-001.88.059', stock: 7, marca: 'GENERICO', proveedor: 'SPEC MEDICA' },
+            { nfcId: 'NFC-6400009000E', nombre: 'MANDO UNIVERSAL P/MOTOR CIRUGIA PERCUTANEA - TPS', referencia: '6400009000E', stock: 1, marca: 'STRYKER', proveedor: 'STRYKER' },
+            { nfcId: 'NFC-094207', nombre: 'MODULO DE CARGA DE FOTOFORO', referencia: '094207', stock: 1, marca: 'STORZ', proveedor: 'STORZ' },
+            { nfcId: 'NFC-7207-003-000', nombre: 'PROTECTOR PARA SIERRA DE ESTERNOTOMIA', referencia: '7207-003-000', stock: **1**, marca: 'STRYKER', proveedor: 'STRYKER' },
+            { nfcId: 'NFC-C1711-50', nombre: 'Maguito PNI adulto (25-35cm)', referencia: 'C1711-50', stock: 1, marca: 'N/A', proveedor: 'N/A' }
+        ];
+
+        // --- ELEMENTOS DEL DOM ---
+        const listView = document.getElementById('list-view');
+        const editView = document.getElementById('edit-view');
+        const historyView = document.getElementById('history-view');
+        const itemListDiv = document.getElementById('item-list');
+        const loadingMessage = document.getElementById('loading-message');
+        const searchBar = document.getElementById('search-bar');
+        
+        // --- LÓGICA DE LA APLICACIÓN ---
+
+        async function loadInitialDataIfNeeded() {
+            if (!stockCollectionRef) return;
+            const snapshot = await get
