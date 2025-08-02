@@ -14,7 +14,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
 
     <style>
-        /* Estilos personalizados para el efecto glassmorphism y la tipografía */
         body {
             font-family: 'Inter', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -25,7 +24,6 @@
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        /* Ocultar flechas en input de tipo number */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { 
           -webkit-appearance: none; 
@@ -54,7 +52,7 @@
 
     <div id="app-container" class="w-full max-w-2xl glass-container rounded-2xl shadow-2xl p-6 md:p-8">
         
-        <!-- Vista de la lista de artículos -->
+        <!-- Vistas de la aplicación -->
         <div id="list-view">
             <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                 <h2 class="text-2xl font-bold">Inventario General</h2>
@@ -64,11 +62,10 @@
                 </div>
             </div>
             <div id="item-list" class="space-y-3">
-                <p id="loading-message">Cargando datos del inventario...</p>
+                <p id="loading-message">Conectando con la base de datos...</p>
             </div>
         </div>
 
-        <!-- Vista de creación de un artículo -->
         <div id="create-view" class="hidden">
             <h2 class="text-2xl font-bold mb-6">Nuevo Artículo</h2>
             <form id="create-item-form" class="space-y-4">
@@ -84,7 +81,6 @@
             </form>
         </div>
 
-        <!-- Vista de edición de un artículo -->
         <div id="edit-view" class="hidden">
             <div class="text-center mb-8">
                 <h2 id="item-name" class="text-3xl font-extrabold"></h2>
@@ -101,7 +97,6 @@
             </div>
         </div>
 
-        <!-- Vista del historial de movimientos -->
         <div id="history-view" class="hidden">
              <div class="mb-6">
                 <h2 class="text-2xl font-bold">Historial de Movimientos</h2>
@@ -112,7 +107,6 @@
                 <button id="back-btn-from-history" class="w-full max-w-xs bg-gray-500/50 hover:bg-gray-600/50 text-white font-bold py-2 px-4 rounded-lg transition-colors">Volver</button>
             </div>
         </div>
-
     </div>
 
     <footer class="mt-8 text-center text-white/70">
@@ -126,11 +120,26 @@
         import { getFirestore, collection, getDocs, doc, getDoc, onSnapshot, updateDoc, writeBatch, Timestamp, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // --- CONFIGURACIÓN ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { apiKey: "TU_API_KEY", authDomain: "TU_AUTH_DOMAIN", projectId: "TU_PROJECT_ID" };
+    // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAqKnTUF5_H9_yoXNII3w1FvA2XWI1Hgg0",
+  authDomain: "stock-pg-33235.firebaseapp.com",
+  projectId: "stock-pg-33235",
+  storageBucket: "stock-pg-33235.firebasestorage.app",
+  messagingSenderId: "744258530761",
+  appId: "1:744258530761:web:1873521165ca06ef278c18"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+        };
+
+        // --- INICIALIZACIÓN DE LA APP ---
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
@@ -177,7 +186,6 @@
         const createItemForm = document.getElementById('create-item-form');
         
         // --- LÓGICA DE LA APLICACIÓN ---
-
         async function loadInitialDataIfNeeded() {
             if (!stockCollectionRef) return;
             const snapshot = await getDocs(stockCollectionRef);
@@ -194,7 +202,8 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUserId = user.uid;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'stock-app';
+                // Usamos un ID de app fijo para que sea consistente
+                const appId = 'gestion-stock-policlinica-app'; 
                 stockCollectionRef = collection(db, `artifacts/${appId}/users/${currentUserId}/stock`);
                 await loadInitialDataIfNeeded();
                 router();
@@ -234,7 +243,10 @@
                 loadingMessage.classList.add('hidden');
                 allItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 filterAndRenderItems();
-            }, error => console.error("Error al obtener datos:", error));
+            }, error => {
+                console.error("Error al obtener datos:", error);
+                loadingMessage.textContent = "Error de conexión. Revisa la configuración de Firebase.";
+            });
         }
 
         function filterAndRenderItems() {
@@ -250,8 +262,12 @@
 
         function renderItemList(items) {
             itemListDiv.innerHTML = '';
+            if (items.length === 0 && searchBar.value) {
+                itemListDiv.innerHTML = `<p>No se encontraron artículos para "${searchBar.value}".</p>`;
+                return;
+            }
             if (items.length === 0) {
-                itemListDiv.innerHTML = `<p>No se encontraron artículos.</p>`;
+                itemListDiv.innerHTML = `<p>El inventario está vacío.</p>`;
                 return;
             }
             items.forEach(item => {
