@@ -93,6 +93,7 @@
             </div>
             <div class="mt-12 flex flex-col items-center space-y-4">
                  <button id="save-btn" class="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors shadow-xl">Guardar Cambios</button>
+                 <button id="delete-item-btn" class="w-full max-w-xs bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors shadow-xl">Eliminar Artículo</button>
                  <button id="back-btn-from-edit" class="w-full max-w-xs bg-gray-500/50 hover:bg-gray-600/50 text-white font-bold py-2 px-4 rounded-lg transition-colors">Volver</button>
             </div>
         </div>
@@ -117,7 +118,7 @@
     <script type="module">
         // Importaciones de Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, doc, getDoc, onSnapshot, updateDoc, writeBatch, Timestamp, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, doc, getDoc, onSnapshot, updateDoc, writeBatch, Timestamp, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- CONFIGURACIÓN DE FIREBASE ---
         const firebaseConfig = {
@@ -362,8 +363,10 @@
             const proveedor = form['new-item-provider'].value.trim() || 'N/A';
             const stock = parseInt(form['new-item-stock'].value, 10);
 
+            // Reemplazar alert con un modal o mensaje en la UI
             if (!nombre || !referencia) {
-                alert('El nombre y la referencia son obligatorios.');
+                console.error('El nombre y la referencia son obligatorios.');
+                // Aquí podrías mostrar un modal o un mensaje de error en la UI
                 return;
             }
 
@@ -374,7 +377,8 @@
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
-                alert('Ya existe un artículo con esta referencia. Por favor, use una referencia única.');
+                console.error('Ya existe un artículo con esta referencia. Por favor, use una referencia única.');
+                // Aquí podrías mostrar un modal o un mensaje de error en la UI
                 return;
             }
 
@@ -392,7 +396,7 @@
                 window.location.hash = '';
             } catch (error) {
                 console.error("Error al crear el nuevo artículo:", error);
-                alert("No se pudo guardar el artículo. Revise la consola para más detalles.");
+                // Aquí podrías mostrar un modal o un mensaje de error en la UI
             }
         }
 
@@ -420,6 +424,25 @@
             }
         }
 
+        async function handleDeleteItem() {
+            if (!currentItem) return;
+
+            // Reemplazar confirm con un modal de confirmación en la UI
+            const userConfirmed = window.confirm(`¿Estás seguro de que quieres eliminar "${currentItem.nombre}"? Esta acción es irreversible.`);
+            
+            if (userConfirmed) {
+                const itemDocRef = doc(stockCollectionRef, currentItem.id);
+                try {
+                    await deleteDoc(itemDocRef);
+                    console.log("Artículo eliminado exitosamente!");
+                    window.location.hash = ''; // Volver a la lista después de eliminar
+                } catch (error) {
+                    console.error("Error al eliminar el artículo:", error);
+                    // Aquí podrías mostrar un modal o un mensaje de error en la UI
+                }
+            }
+        }
+
         // --- EVENT LISTENERS ---
         searchBar.addEventListener('input', filterAndRenderItems);
         document.getElementById('new-item-btn').addEventListener('click', () => window.location.hash = '#new');
@@ -428,6 +451,7 @@
         document.getElementById('increase-btn').addEventListener('click', () => { tempStock++; updateEditViewUI(); });
         document.getElementById('decrease-btn').addEventListener('click', () => { if (tempStock > 0) { tempStock--; updateEditViewUI(); } });
         document.getElementById('save-btn').addEventListener('click', handleSaveStock);
+        document.getElementById('delete-item-btn').addEventListener('click', handleDeleteItem); // Nuevo event listener
         document.getElementById('back-btn-from-edit').addEventListener('click', () => { window.location.hash = ''; });
         document.getElementById('back-btn-from-history').addEventListener('click', () => { window.location.hash = ''; });
         window.addEventListener('hashchange', router);
