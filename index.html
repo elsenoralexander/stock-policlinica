@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Stock - Policlínica</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          -webkit-appearance: none; 
+          margin: 0; 
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+        .form-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: background 0.3s;
+        }
+        .form-input:focus {
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+        }
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
+
+    <h1 class="text-4xl md:text-5xl font-bold text-white mb-6 text-center shadow-lg">Gestión de Stock de Electromedicina</h1>
+
+    <div id="app-container" class="w-full max-w-2xl glass-container rounded-2xl shadow-2xl p-6 md:p-8">
+        
+        <!-- Vistas de la aplicación -->
+        <div id="list-view">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <h2 class="text-2xl font-bold">Inventario General</h2>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <input type="search" id="search-bar" placeholder="Buscar..." class="w-full sm:w-48 form-input rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-white/50">
+                    <button id="new-item-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors shadow-md flex-shrink-0">Crear Nuevo</button>
+                </div>
+            </div>
+            <div id="item-list" class="space-y-3">
+                <p id="loading-message">Conectando con la base de datos...</p>
+            </div>
+        </div>
+
+        <div id="create-view" class="hidden">
+            <h2 class="text-2xl font-bold mb-6">Nuevo Artículo</h2>
+            <form id="create-item-form" class="space-y-4">
+                <input type="text" id="new-item-name" placeholder="Nombre del artículo" required class="w-full p-3 rounded-lg form-input">
+                <input type="text" id="new-item-ref" placeholder="Referencia" required class="w-full p-3 rounded-lg form-input">
+                <input type="text" id="new-item-brand" placeholder="Marca" class="w-full p-3 rounded-lg form-input">
+                <input type="text" id="new-item-provider" placeholder="Proveedor" class="w-full p-3 rounded-lg form-input">
+                <input type="number" id="new-item-stock" placeholder="Stock Inicial" required min="0" value="0" class="w-full p-3 rounded-lg form-input">
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" id="cancel-create-btn" class="bg-gray-500/80 hover:bg-gray-600/80 text-white font-bold py-2 px-6 rounded-lg transition-colors">Cancelar</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Guardar Artículo</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="edit-view" class="hidden">
+            <div class="text-center mb-8">
+                <h2 id="item-name" class="text-3xl font-extrabold"></h2>
+                <p id="item-ref" class="text-lg opacity-80"></p>
+            </div>
+            <div class="flex items-center justify-center space-x-6 my-8">
+                <button id="decrease-btn" class="bg-red-500/80 hover:bg-red-600/80 w-20 h-20 rounded-full flex items-center justify-center text-6xl font-light transition-transform transform hover:scale-110 shadow-lg">-</button>
+                <div id="stock-count" class="text-8xl md:text-9xl font-black" style="min-width: 150px; text-align: center;">0</div>
+                <button id="increase-btn" class="bg-green-500/80 hover:bg-green-600/80 w-20 h-20 rounded-full flex items-center justify-center text-6xl font-light transition-transform transform hover:scale-110 shadow-lg">+</button>
+            </div>
+            <div class="mt-12 flex flex-col items-center space-y-4">
+                 <button id="save-btn" class="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors shadow-xl">Guardar Cambios</button>
+                 <button id="back-btn-from-edit" class="w-full max-w-xs bg-gray-500/50 hover:bg-gray-600/50 text-white font-bold py-2 px-4 rounded-lg transition-colors">Volver</button>
+            </div>
+        </div>
+
+        <div id="history-view" class="hidden">
+             <div class="mb-6">
+                <h2 class="text-2xl font-bold">Historial de Movimientos</h2>
+                <p id="history-item-name" class="opacity-80"></p>
+            </div>
+            <div id="history-list" class="space-y-3 max-h-96 overflow-y-auto pr-2"></div>
+            <div class="mt-8 flex justify-center">
+                <button id="back-btn-from-history" class="w-full max-w-xs bg-gray-500/50 hover:bg-gray-600/50 text-white font-bold py-2 px-4 rounded-lg transition-colors">Volver</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-8 text-center text-white/70">
+        <p>&copy;2025 Gestión Stock Policlinica</p>
+    </footer>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Importaciones de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, doc, getDoc, onSnapshot, updateDoc, writeBatch, Timestamp, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- CONFIGURACIÓN DE FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqKnTUF5_H9_yoXNII3w1FvA2XWI1Hgg0",
+            authDomain: "stock-pg-33235.firebaseapp.com",
+            projectId: "stock-pg-33235",
+            storageBucket: "stock-pg-33235.appspot.com",
+            messagingSenderId: "744258530761",
+            appId: "1:744258530761:web:1873521165ca06ef278c18"
+        };
+
+        // --- INICIALIZACIÓN DE LA APP ---
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- ESTADO DE LA APLICACIÓN ---
+        let stockCollectionRef = null;
+        let currentItem = null;
+        let tempStock = 0;
+        let unsubscribe = null;
+        let allItems = [];
+
+        // --- DATOS INICIALES ---
+        const initialStockData = [
+            { nfcId: 'NFC-XBOR180W-45C', nombre: 'LAMPARA MICROSCOPIO NEURO (PANTALLA)', referencia: 'XBOR180W-45C', stock: 1, marca: 'OSRAM', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-6834FO:PH', nombre: 'LAMPARA MICROSCOPIO OJOS', referencia: '6834FO:PH', stock: 7, marca: 'PHILIPS', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-ECL0001:ALM', nombre: 'LAMPARA PRISMALIX (Q3-Q4-Q5-Q8)', referencia: 'ECL0001:ALM', stock: 14, marca: 'MAQUET', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-369009900:MAQ', nombre: 'LAMPARA HANAULUX (Q OBSTETRICO)', referencia: '369009900:MAQ', stock: 5, marca: 'MAQUET', proveedor: 'MEDICAL LIGHTING' },
+            { nfcId: 'NFC-ARD568805501', nombre: 'PANEL TACTIL LAMPARAS VOLISTA', referencia: 'ARD568805501', stock: 1, marca: 'GETINGE', proveedor: 'GETINGE' },
+            { nfcId: 'NFC-113390AE', nombre: 'MANDO CABLE MESA ALPHAMAX', referencia: '113390AE', stock: 0, marca: 'GETINGE', proveedor: 'GETINGE' },
+            { nfcId: 'NFC-720090A0', nombre: 'MANDO CABLE MESA MEERA', referencia: '720090A0', stock: 1, marca: 'GETINGE', proveedor: 'GETINGE' },
+            { nfcId: 'NFC-PINCHO-STERIS', nombre: 'PINCHO STERIS', referencia: 'N/A', stock: 4, marca: 'STERIS', proveedor: 'SUMISAN' },
+            { nfcId: 'NFC-59-01-011', nombre: 'CABLE TRONCAL ECG EQUIPO REHABILITACIÓN CARDIACA', referencia: '59-01-011', stock: 5, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-22-30-030', nombre: 'SENSOR PULSI DEDO REHABILITACIÓN CARDICA', referencia: '22-30-030', stock: 3, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-17-01-001', nombre: 'PETACA - ECG BLUETOOTH CON 1 CINTURON', referencia: '17-01-001', stock: 1, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-90-40-001', nombre: 'Cinturón negro para ecg bluetooth', referencia: '90-40-001', stock: 2, marca: 'PRIM, S.A.', proveedor: 'PRIM, S.A.' },
+            { nfcId: 'NFC-X-001.88.059', nombre: 'BOMBILLA PARA PALAS DE LARINGO', referencia: 'X-001.88.059', stock: 7, marca: 'GENERICO', proveedor: 'SPEC MEDICA' },
+            { nfcId: 'NFC-6400009000E', nombre: 'MANDO UNIVERSAL P/MOTOR CIRUGIA PERCUTANEA - TPS', referencia: '6400009000E', stock: 1, marca: 'STRYKER', proveedor: 'STRYKER' },
+            { nfcId: 'NFC-094207', nombre: 'MODULO DE CARGA DE FOTOFORO', referencia: '094207', stock: 1, marca: 'STORZ', proveedor: 'STORZ' },
+            { nfcId: 'NFC-7207-003-000', nombre: 'PROTECTOR PARA SIERRA DE ESTERNOTOMIA', referencia: '7207-003-000', stock: 1, marca: 'STRYKER', proveedor: 'STRYKER' },
+            { nfcId: 'NFC-C1711-50', nombre: 'Maguito PNI adulto (25-35cm)', referencia: 'C1711-50', stock: 1, marca: 'N/A', proveedor: 'N/A' }
+        ];
+
+        // --- ELEMENTOS DEL DOM ---
+        const allViews = {
+            list: document.getElementById('list-view'),
+            edit: document.getElementById('edit-view'),
+            history: document.getElementById('history-view'),
+            create: document.getElementById('create-view'),
+        };
+        const itemListDiv = document.getElementById('item-list');
+        const loadingMessage = document.getElementById('loading-message');
+        const searchBar = document.getElementById('search-bar');
+        const createItemForm = document.getElementById('create-item-form');
+        
+        // --- LÓGICA DE LA APLICACIÓN ---
+        async function loadInitialDataIfNeeded() {
+            if (!stockCollectionRef) return;
+            try {
+                const snapshot = await getDocs(stockCollectionRef);
+                if (snapshot.empty) {
+                    const batch = writeBatch(db);
+                    initialStockData.forEach(item => {
+                        const docRef = doc(stockCollectionRef, item.nfcId);
+                        batch.set(docRef, item);
+                    });
+                    await batch.commit();
+                }
+            } catch (error) {
+                console.error("Error crítico durante la carga inicial. Revisa las reglas de Firestore.", error);
+                loadingMessage.textContent = "Error de permisos. Verifica las reglas de Firestore.";
+            }
+        }
+
+        async function initializeAppLogic() {
+            // Usar una ruta de colección simple y directa.
+            stockCollectionRef = collection(db, "stock");
+            await loadInitialDataIfNeeded();
+            router();
+        }
+
+        // Inicia la lógica de la aplicación directamente.
+        initializeAppLogic();
+
+        function showView(viewName) {
+            Object.values(allViews).forEach(view => view.classList.add('hidden'));
+            if (allViews[viewName]) {
+                allViews[viewName].classList.remove('hidden');
+            }
+        }
+
+        function router() {
+            if (unsubscribe) unsubscribe();
+            const hash = window.location.hash;
+            const editMatch = hash.match(/^#item=(.+)/);
+            const historyMatch = hash.match(/^#history=(.+)/);
+
+            if (hash === '#new') {
+                showCreateView();
+            } else if (editMatch) {
+                showEditView(editMatch[1]);
+            } else if (historyMatch) {
+                showHistoryView(historyMatch[1]);
+            } else {
+                showListView();
+            }
+        }
+
+        function showListView() {
+            showView('list');
+            if (!stockCollectionRef) return;
+            unsubscribe = onSnapshot(stockCollectionRef, (snapshot) => {
+                loadingMessage.classList.add('hidden');
+                allItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                filterAndRenderItems();
+            }, error => {
+                console.error("Error al obtener datos:", error);
+                loadingMessage.textContent = "Error de conexión. Revisa la configuración de Firebase.";
+            });
+        }
+
+        function filterAndRenderItems() {
+            const searchTerm = searchBar.value.toLowerCase();
+            const filteredItems = allItems.filter(item => 
+                item.nombre.toLowerCase().includes(searchTerm) || 
+                item.referencia.toLowerCase().includes(searchTerm) ||
+                (item.marca && item.marca.toLowerCase().includes(searchTerm)) ||
+                (item.proveedor && item.proveedor.toLowerCase().includes(searchTerm))
+            );
+            renderItemList(filteredItems);
+        }
+
+        function renderItemList(items) {
+            itemListDiv.innerHTML = '';
+            if (items.length === 0 && searchBar.value) {
+                itemListDiv.innerHTML = `<p>No se encontraron artículos para "${searchBar.value}".</p>`;
+                return;
+            }
+            if (items.length === 0) {
+                itemListDiv.innerHTML = `<p>El inventario está vacío.</p>`;
+                return;
+            }
+            items.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'p-4 glass-container rounded-lg';
+                itemElement.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <a href="#item=${item.nfcId}" class="flex-grow pr-4">
+                            <p class="font-bold text-lg">${item.nombre}</p>
+                            <p class="text-sm opacity-70">${item.referencia}</p>
+                            <div class="mt-2 text-xs opacity-80">
+                                <p><span class="font-semibold">Marca:</span> ${item.marca || 'N/A'}</p>
+                                <p><span class="font-semibold">Proveedor:</span> ${item.proveedor || 'N/A'}</p>
+                            </div>
+                        </a>
+                        <div class="text-right flex-shrink-0">
+                            <p class="text-2xl font-bold">${item.stock}</p>
+                            <p class="text-xs opacity-70">Unidades</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-white/10 text-right">
+                        <a href="#history=${item.nfcId}" class="text-sm text-indigo-300 hover:text-indigo-200">Ver Historial</a>
+                    </div>
+                `;
+                itemListDiv.appendChild(itemElement);
+            });
+        }
+        
+        function showCreateView() {
+            showView('create');
+            createItemForm.reset();
+        }
+
+        function showEditView(itemId) {
+            showView('edit');
+            const itemDocRef = doc(stockCollectionRef, itemId);
+            unsubscribe = onSnapshot(itemDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    currentItem = { id: docSnap.id, ...docSnap.data() };
+                    tempStock = currentItem.stock;
+                    updateEditViewUI();
+                } else {
+                    window.location.hash = '';
+                }
+            });
+        }
+
+        function showHistoryView(itemId) {
+            showView('history');
+            const historyCollectionRef = collection(db, stockCollectionRef.path, itemId, 'history');
+            const historyListName = document.getElementById('history-item-name');
+            const item = allItems.find(i => i.id === itemId);
+            historyListName.textContent = item ? item.nombre : 'Cargando...';
+
+            unsubscribe = onSnapshot(historyCollectionRef, (snapshot) => {
+                const historyItems = snapshot.docs.map(doc => doc.data());
+                historyItems.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+                renderHistoryList(historyItems);
+            });
+        }
+
+        function renderHistoryList(historyItems) {
+            const historyListDiv = document.getElementById('history-list');
+            historyListDiv.innerHTML = '';
+            if (historyItems.length === 0) {
+                historyListDiv.innerHTML = '<p>No hay movimientos registrados.</p>';
+                return;
+            }
+            historyItems.forEach(log => {
+                const logElement = document.createElement('div');
+                logElement.className = 'p-3 bg-white/5 rounded-lg';
+                const date = log.timestamp.toDate().toLocaleString('es-ES');
+                const change = log.newStock - log.previousStock;
+                const changeText = change > 0 ? `+${change}` : change;
+                const changeColor = change > 0 ? 'text-green-400' : 'text-red-400';
+                logElement.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-bold ${changeColor}">Movimiento: ${changeText}</p>
+                            <p class="text-sm opacity-80">Stock: ${log.previousStock} → ${log.newStock}</p>
+                        </div>
+                        <p class="text-xs opacity-60 text-right">${date}</p>
+                    </div>
+                `;
+                historyListDiv.appendChild(logElement);
+            });
+        }
+
+        function updateEditViewUI() {
+            if (!currentItem) return;
+            document.getElementById('item-name').textContent = currentItem.nombre;
+            document.getElementById('item-ref').textContent = currentItem.referencia;
+            document.getElementById('stock-count').textContent = tempStock;
+        }
+
+        async function handleSaveNewItem(event) {
+            event.preventDefault();
+            const form = event.target;
+            const nombre = form['new-item-name'].value.trim();
+            const referencia = form['new-item-ref'].value.trim();
+            const marca = form['new-item-brand'].value.trim() || 'N/A';
+            const proveedor = form['new-item-provider'].value.trim() || 'N/A';
+            const stock = parseInt(form['new-item-stock'].value, 10);
+
+            if (!nombre || !referencia) {
+                alert('El nombre y la referencia son obligatorios.');
+                return;
+            }
+
+            const sanitizedRef = referencia.replace(/[\s/.]/g, '-').toUpperCase();
+            const nfcId = `NFC-${sanitizedRef}`;
+
+            const docRef = doc(stockCollectionRef, nfcId);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                alert('Ya existe un artículo con esta referencia. Por favor, use una referencia única.');
+                return;
+            }
+
+            const newItem = {
+                nfcId,
+                nombre,
+                referencia,
+                marca,
+                proveedor,
+                stock: isNaN(stock) ? 0 : stock
+            };
+            
+            try {
+                await setDoc(docRef, newItem);
+                window.location.hash = '';
+            } catch (error) {
+                console.error("Error al crear el nuevo artículo:", error);
+                alert("No se pudo guardar el artículo. Revise la consola para más detalles.");
+            }
+        }
+
+        async function handleSaveStock() {
+            if (!currentItem || currentItem.stock === tempStock) {
+                 window.location.hash = '';
+                 return;
+            }
+            const itemDocRef = doc(stockCollectionRef, currentItem.id);
+            const historyCollectionRef = collection(db, itemDocRef.path, 'history');
+            const historyEntry = {
+                previousStock: currentItem.stock,
+                newStock: tempStock,
+                timestamp: Timestamp.now()
+            };
+            try {
+                const batch = writeBatch(db);
+                batch.update(itemDocRef, { stock: tempStock });
+                const historyDocRef = doc(historyCollectionRef); 
+                batch.set(historyDocRef, historyEntry);
+                await batch.commit();
+                window.location.hash = '';
+            } catch (error) {
+                console.error("Error al guardar el stock y el historial:", error);
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        searchBar.addEventListener('input', filterAndRenderItems);
+        document.getElementById('new-item-btn').addEventListener('click', () => window.location.hash = '#new');
+        createItemForm.addEventListener('submit', handleSaveNewItem);
+        document.getElementById('cancel-create-btn').addEventListener('click', () => window.location.hash = '');
+        document.getElementById('increase-btn').addEventListener('click', () => { tempStock++; updateEditViewUI(); });
+        document.getElementById('decrease-btn').addEventListener('click', () => { if (tempStock > 0) { tempStock--; updateEditViewUI(); } });
+        document.getElementById('save-btn').addEventListener('click', handleSaveStock);
+        document.getElementById('back-btn-from-edit').addEventListener('click', () => { window.location.hash = ''; });
+        document.getElementById('back-btn-from-history').addEventListener('click', () => { window.location.hash = ''; });
+        window.addEventListener('hashchange', router);
+
+    </script>
+</body>
+</html>
