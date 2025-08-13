@@ -250,37 +250,23 @@
 
     <script type="module">
 
-        // Importaciones de Firebase
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAqKnTUF5_H9_yoXNII3w1FvA2XWI1Hgg0",
+  authDomain: "stock-pg-33235.firebaseapp.com",
+  projectId: "stock-pg-33235",
+  storageBucket: "stock-pg-33235.firebasestorage.app",
+  messagingSenderId: "744258530761",
+  appId: "1:744258530761:web:1873521165ca06ef278c18"
+};
 
-        import { getFirestore, collection, getDocs, doc, getDoc, onSnapshot, updateDoc, writeBatch, Timestamp, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        
-
-        // --- CONFIGURACIÓN DE FIREBASE ---
-
-        const firebaseConfig = {
-
-            apiKey: "AIzaSyAqKnTUF5_H9_yoXNII3w1FvA2XWI1Hgg0",
-
-            authDomain: "stock-pg-33235.firebaseapp.com",
-
-            projectId: "stock-pg-33235",
-
-            storageBucket: "stock-pg-33235.appspot.com",
-
-            messagingSenderId: "744258530761",
-
-            appId: "1:744258530761:web:1873521165ca06ef278c18"
-
-        };
-
-
-
-        // --- INICIALIZACIÓN DE LA APP ---
-
-        const app = initializeApp(firebaseConfig);
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
         const db = getFirestore(app);
 
@@ -935,6 +921,7 @@
 </body>
 
 </html>
+
 
 
 
