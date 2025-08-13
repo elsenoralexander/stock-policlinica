@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Stock - Policlínica</title>
-
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-
+    
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,6 +44,18 @@
         .form-input::placeholder {
             color: rgba(255, 255, 255, 0.6);
         }
+        /* Estilos para el NFC status message */
+        #nfc-status-message {
+            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 0.875rem; /* text-sm */
+        }
+        #nfc-status-message.text-red-300 {
+            color: #fca5a5; /* Red-300 */
+        }
+        #nfc-status-message.text-white\/80 {
+            color: rgba(255, 255, 255, 0.8); /* White with 80% opacity */
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
@@ -51,16 +63,11 @@
     <h1 class="text-4xl md:text-5xl font-bold text-white mb-6 text-center shadow-lg">Gestión de Stock de Electromedicina</h1>
 
     <!-- INICIO: Placeholder para el logo de la empresa -->
-    <!-- 
-        Reemplaza la URL de la imagen con la de tu logo (preferiblemente un PNG con fondo transparente).
-        He ajustado el tamaño para que sea el doble de grande y he eliminado bordes/sombras para una mejor integración.
-    -->
-    <img src=raw.githubusercontent.com/elsenoralexander/stock-policlinica/main/images/LOGO%20NUEVO.png alt="Logo de la Empresa" class="mx-auto mb-8 max-w-md h-auto">
-    <img src= https://raw.githubusercontent.com/elsenoralexander/stock-policlinica/main/images/LOGO%20NUEVO.png alt="Logo de la Empresa" class="mx-auto mb-8 max-w-md h-auto">
+    <img src="https://raw.githubusercontent.com/elsenoralexander/stock-policlinica/main/images/LOGO%20NUEVO.png" alt="Logo de la Empresa" class="mx-auto mb-8 max-w-md h-auto">
     <!-- FIN: Placeholder para el logo de la empresa -->
 
     <div id="app-container" class="w-full max-w-2xl glass-container rounded-2xl shadow-2xl p-6 md:p-8">
-
+        
         <!-- Vistas de la aplicación -->
         <div id="list-view">
             <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
@@ -68,8 +75,11 @@
                 <div class="flex gap-2 w-full sm:w-auto">
                     <input type="search" id="search-bar" placeholder="Buscar..." class="w-full sm:w-48 form-input rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-white/50">
                     <button id="new-item-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors shadow-md flex-shrink-0">Crear Nuevo</button>
+                    <!-- Botón NFC agregado -->
+                    <button id="scan-nfc-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold w-14 h-14 rounded-full flex items-center justify-center transition-colors shadow-md flex-shrink-0 text-sm">NFC</button>
                 </div>
             </div>
+            <div id="nfc-status-message" class="mb-4 text-center text-sm"></div> <!-- Añadido para mensajes NFC -->
             <div id="item-list" class="space-y-3">
                 <p id="loading-message">Conectando con la base de datos...</p>
             </div>
@@ -149,6 +159,10 @@
         let tempStock = 0;
         let unsubscribe = null;
         let allItems = [];
+        let nfcReader = null; // Instancia de NDEFReader para NFC
+
+        // --- ELEMENTOS DEL DOM (agregados para NFC status) ---
+        const nfcStatusDiv = document.getElementById('nfc-status-message'); // Elemento para mostrar el estado de NFC
 
         // --- DATOS INICIALES ---
         const initialStockData = [
@@ -182,7 +196,7 @@
         const loadingMessage = document.getElementById('loading-message');
         const searchBar = document.getElementById('search-bar');
         const createItemForm = document.getElementById('create-item-form');
-
+        
         // --- LÓGICA DE LA APLICACIÓN ---
         async function loadInitialDataIfNeeded() {
             if (!stockCollectionRef) return;
@@ -195,28 +209,33 @@
                         batch.set(docRef, item);
                     });
                     await batch.commit();
+                    alert("Datos iniciales cargados con éxito."); // Usando alert, como en un estado más original
                 }
             } catch (error) {
                 console.error("Error crítico durante la carga inicial. Revisa las reglas de Firestore.", error);
                 loadingMessage.textContent = "Error de permisos. Verifica las reglas de Firestore.";
+                alert(`Error al cargar datos iniciales: ${error.message}`); // Usando alert
             }
         }
 
         async function initializeAppLogic() {
             // Usar una ruta de colección simple y directa.
             stockCollectionRef = collection(db, "stock");
+            console.log(`Colección de Firestore usada: ${stockCollectionRef.path}`); // Para depuración
+            
             await loadInitialDataIfNeeded();
             router();
         }
 
-        // Inicia la lógica de la aplicación directamente.
-        initializeAppLogic();
+        // Inicia la lógica de la aplicación cuando el DOM esté completamente cargado.
+        document.addEventListener('DOMContentLoaded', initializeAppLogic);
 
         function showView(viewName) {
             Object.values(allViews).forEach(view => view.classList.add('hidden'));
             if (allViews[viewName]) {
                 allViews[viewName].classList.remove('hidden');
             }
+            stopNFCScan(); // Detener el escaneo NFC al cambiar de vista
         }
 
         function router() {
@@ -238,7 +257,10 @@
 
         function showListView() {
             showView('list');
-            if (!stockCollectionRef) return;
+            if (!stockCollectionRef) {
+                loadingMessage.textContent = "Base de datos no inicializada.";
+                return;
+            }
             unsubscribe = onSnapshot(stockCollectionRef, (snapshot) => {
                 loadingMessage.classList.add('hidden');
                 allItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -246,6 +268,7 @@
             }, error => {
                 console.error("Error al obtener datos:", error);
                 loadingMessage.textContent = "Error de conexión. Revisa la configuración de Firebase.";
+                alert(`Error al cargar la lista de artículos: ${error.message}`); // Usando alert
             });
         }
 
@@ -255,7 +278,8 @@
                 item.nombre.toLowerCase().includes(searchTerm) || 
                 item.referencia.toLowerCase().includes(searchTerm) ||
                 (item.marca && item.marca.toLowerCase().includes(searchTerm)) ||
-                (item.proveedor && item.proveedor.toLowerCase().includes(searchTerm))
+                (item.proveedor && item.proveedor.toLowerCase().includes(searchTerm)) ||
+                (item.nfcId && item.nfcId.toLowerCase().includes(searchTerm))
             );
             renderItemList(filteredItems);
         }
@@ -263,11 +287,11 @@
         function renderItemList(items) {
             itemListDiv.innerHTML = '';
             if (items.length === 0 && searchBar.value) {
-                itemListDiv.innerHTML = `<p>No se encontraron artículos para "${searchBar.value}".</p>`;
+                itemListDiv.innerHTML = `<p class="text-center opacity-70">No se encontraron artículos para "${searchBar.value}".</p>`;
                 return;
             }
             if (items.length === 0) {
-                itemListDiv.innerHTML = `<p>El inventario está vacío.</p>`;
+                itemListDiv.innerHTML = `<p class="text-center opacity-70">El inventario está vacío.</p>`;
                 return;
             }
             items.forEach(item => {
@@ -295,7 +319,7 @@
                 itemListDiv.appendChild(itemElement);
             });
         }
-
+        
         function showCreateView() {
             showView('create');
             createItemForm.reset();
@@ -303,6 +327,8 @@
 
         function showEditView(itemId) {
             showView('edit');
+            if (!stockCollectionRef) return;
+
             const itemDocRef = doc(stockCollectionRef, itemId);
             unsubscribe = onSnapshot(itemDocRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -310,22 +336,32 @@
                     tempStock = currentItem.stock;
                     updateEditViewUI();
                 } else {
+                    alert(`El artículo con ID ${itemId} no se encontró o fue eliminado.`); // Usando alert
                     window.location.hash = '';
                 }
+            }, error => {
+                console.error("Error al obtener el artículo para edición:", error);
+                alert(`Error al cargar el artículo: ${error.message}`); // Usando alert
+                window.location.hash = '';
             });
         }
 
         function showHistoryView(itemId) {
             showView('history');
+            if (!db || !stockCollectionRef) return;
+
             const historyCollectionRef = collection(db, stockCollectionRef.path, itemId, 'history');
             const historyListName = document.getElementById('history-item-name');
             const item = allItems.find(i => i.id === itemId);
-            historyListName.textContent = item ? item.nombre : 'Cargando...';
+            historyListName.textContent = item ? item.nombre : 'Cargando historial...';
 
             unsubscribe = onSnapshot(historyCollectionRef, (snapshot) => {
                 const historyItems = snapshot.docs.map(doc => doc.data());
                 historyItems.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
                 renderHistoryList(historyItems);
+            }, error => {
+                console.error("Error al obtener historial:", error);
+                alert(`Error al cargar el historial: ${error.message}`); // Usando alert
             });
         }
 
@@ -333,7 +369,7 @@
             const historyListDiv = document.getElementById('history-list');
             historyListDiv.innerHTML = '';
             if (historyItems.length === 0) {
-                historyListDiv.innerHTML = '<p>No hay movimientos registrados.</p>';
+                historyListDiv.innerHTML = '<p class="text-center opacity-70">No hay movimientos registrados para este artículo.</p>';
                 return;
             }
             historyItems.forEach(log => {
@@ -347,7 +383,7 @@
                     <div class="flex justify-between items-center">
                         <div>
                             <p class="font-bold ${changeColor}">Movimiento: ${changeText}</p>
-                            <p class="text-sm opacity-80">Stock: ${log.previousStock} → ${log.newStock}</p>
+                            <p class="text-sm opacity-80">Stock: ${log.previousStock} &rarr; ${log.newStock}</p>
                         </div>
                         <p class="text-xs opacity-60 text-right">${date}</p>
                     </div>
@@ -372,22 +408,24 @@
             const proveedor = form['new-item-provider'].value.trim() || 'N/A';
             const stock = parseInt(form['new-item-stock'].value, 10);
 
-            // Reemplazar alert con un modal o mensaje en la UI
             if (!nombre || !referencia) {
-                console.error('El nombre y la referencia son obligatorios.');
-                // Aquí podrías mostrar un modal o un mensaje de error en la UI
+                alert('El nombre y la referencia son obligatorios.');
                 return;
             }
 
-            const sanitizedRef = referencia.replace(/[\s/.]/g, '-').toUpperCase();
+            const sanitizedRef = referencia.replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
             const nfcId = `NFC-${sanitizedRef}`;
 
             const docRef = doc(stockCollectionRef, nfcId);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                console.error('Ya existe un artículo con esta referencia. Por favor, use una referencia única.');
-                // Aquí podrías mostrar un modal o un mensaje de error en la UI
+            try {
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    alert('Ya existe un artículo con esta referencia NFC. Por favor, usa una referencia única.');
+                    return;
+                }
+            } catch (error) {
+                console.error("Error al verificar existencia del documento:", error);
+                alert(`Error al verificar la referencia: ${error.message}`);
                 return;
             }
 
@@ -399,20 +437,21 @@
                 proveedor,
                 stock: isNaN(stock) ? 0 : stock
             };
-
+            
             try {
                 await setDoc(docRef, newItem);
+                alert('Artículo creado con éxito.');
                 window.location.hash = '';
             } catch (error) {
                 console.error("Error al crear el nuevo artículo:", error);
-                // Aquí podrías mostrar un modal o un mensaje de error en la UI
+                alert(`Error al guardar el nuevo artículo: ${error.message}`);
             }
         }
 
         async function handleSaveStock() {
             if (!currentItem || currentItem.stock === tempStock) {
-                 window.location.hash = '';
-                 return;
+                window.location.hash = '';
+                return;
             }
             const itemDocRef = doc(stockCollectionRef, currentItem.id);
             const historyCollectionRef = collection(db, itemDocRef.path, 'history');
@@ -424,43 +463,141 @@
             try {
                 const batch = writeBatch(db);
                 batch.update(itemDocRef, { stock: tempStock });
-                const historyDocRef = doc(historyCollectionRef); 
+                const historyDocRef = doc(historyCollectionRef);
                 batch.set(historyDocRef, historyEntry);
                 await batch.commit();
+                alert('Stock actualizado y movimiento registrado.');
                 window.location.hash = '';
             } catch (error) {
                 console.error("Error al guardar el stock y el historial:", error);
+                alert(`Error al guardar los cambios: ${error.message}`);
             }
         }
 
         async function handleDeleteItem() {
             if (!currentItem) return;
 
-            // Reemplazar confirm con un modal de confirmación en la UI
-            const userConfirmed = window.confirm(`¿Estás seguro de que quieres eliminar "${currentItem.nombre}"? Esta acción es irreversible.`);
+            const userConfirmed = confirm(`¿Estás seguro de que quieres eliminar "${currentItem.nombre}"? Esta acción es irreversible y eliminará también su historial.`); // Usando confirm
 
             if (userConfirmed) {
                 const itemDocRef = doc(stockCollectionRef, currentItem.id);
+                const historyCollectionRef = collection(db, itemDocRef.path, 'history');
+                
                 try {
+                    // Para eliminar una subcolección, debes eliminar todos sus documentos.
+                    const historySnapshot = await getDocs(historyCollectionRef);
+                    const batch = writeBatch(db);
+                    historySnapshot.forEach(historyDoc => {
+                        batch.delete(historyDoc.ref);
+                    });
+                    await batch.commit(); // Eliminar todos los documentos del historial
+
                     await deleteDoc(itemDocRef);
-                    console.log("Artículo eliminado exitosamente!");
+                    alert("Artículo eliminado exitosamente."); // Usando alert
                     window.location.hash = ''; // Volver a la lista después de eliminar
                 } catch (error) {
-                    console.error("Error al eliminar el artículo:", error);
-                    // Aquí podrías mostrar un modal o un mensaje de error en la UI
+                    console.error("Error al eliminar el artículo y/o su historial:", error);
+                    alert(`Error al eliminar el artículo: ${error.message}`); // Usando alert
                 }
             }
         }
 
+        // --- FUNCIONALIDAD NFC ---
+
+        /**
+         * Muestra mensajes de estado de NFC en la UI.
+         * @param {string} message - El mensaje a mostrar.
+         * @param {boolean} isError - Si es un mensaje de error.
+         */
+        function displayNFCStatus(message, isError = false) {
+            nfcStatusDiv.textContent = message;
+            if (isError) {
+                nfcStatusDiv.className = 'mb-4 text-center text-sm text-red-300';
+            } else {
+                nfcStatusDiv.className = 'mb-4 text-center text-sm text-white/80';
+            }
+        }
+
+        /**
+         * Inicia el escaneo de tarjetas NFC.
+         */
+        async function startNFCScan() {
+            if (!('NDEFReader' in window)) {
+                displayNFCStatus('Tu navegador no soporta la lectura NFC.', true);
+                return;
+            }
+
+            try {
+                if (!nfcReader) {
+                    nfcReader = new NDEFReader();
+                }
+
+                nfcReader.onreading = (event) => {
+                    displayNFCStatus('Tarjeta NFC leída!', false);
+                    const decoder = new TextDecoder();
+                    for (const record of event.message.records) {
+                        // Asumimos que el nfcId está en un registro de tipo 'text'
+                        if (record.recordType === 'text') {
+                            const textData = decoder.decode(record.data);
+                            console.log(`NFC Read: ${textData}`);
+                            if (textData.startsWith('NFC-')) {
+                                window.location.hash = `#item=${textData}`; // Navegar al item
+                                stopNFCScan(); // Detener el escaneo después de leer una tarjeta
+                                return; 
+                            }
+                        }
+                    }
+                    displayNFCStatus('Tarjeta leída, pero no se encontró un ID de artículo válido (esperado "NFC-").', true);
+                    stopNFCScan(); // Detener el escaneo si no es un ID de artículo válido
+                };
+
+                nfcReader.onreadingerror = (event) => {
+                    displayNFCStatus('Error al leer la tarjeta NFC. Asegúrate de que no haya otras aplicaciones usando NFC y la tarjeta esté cerca.', true);
+                    console.error('NFC reading error:', event);
+                    stopNFCScan();
+                };
+
+                await nfcReader.scan();
+                displayNFCStatus('Escaneando NFC... Acerca una tarjeta.');
+            } catch (error) {
+                console.error("Error al iniciar el escaneo NFC:", error);
+                if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
+                    displayNFCStatus('Permiso NFC denegado o no seguro. Asegúrate de que tu sitio esté en HTTPS y que hayas concedido los permisos.', true);
+                } else if (error.name === 'AbortError') {
+                    displayNFCStatus('El escaneo NFC fue abortado. Podría haber otra operación en curso o el usuario canceló.', true);
+                } else {
+                    displayNFCStatus(`Error al iniciar NFC: ${error.message}`, true);
+                }
+                stopNFCScan();
+            }
+        }
+
+        /**
+         * Detiene el escaneo NFC.
+         */
+        function stopNFCScan() {
+            if (nfcReader) {
+                nfcReader.onreading = null;
+                nfcReader.onreadingerror = null;
+            }
+            displayNFCStatus(''); // Limpiar el mensaje de estado NFC
+        }
+
+
         // --- EVENT LISTENERS ---
         searchBar.addEventListener('input', filterAndRenderItems);
-        document.getElementById('new-item-btn').addEventListener('click', () => window.location.hash = '#new');
+        document.getElementById('new-item-btn').addEventListener('click', () => {
+            window.location.hash = '#new';
+        });
+        document.getElementById('scan-nfc-btn').addEventListener('click', startNFCScan); // Listener para el botón NFC
         createItemForm.addEventListener('submit', handleSaveNewItem);
-        document.getElementById('cancel-create-btn').addEventListener('click', () => window.location.hash = '');
+        document.getElementById('cancel-create-btn').addEventListener('click', () => {
+            window.location.hash = '';
+        });
         document.getElementById('increase-btn').addEventListener('click', () => { tempStock++; updateEditViewUI(); });
         document.getElementById('decrease-btn').addEventListener('click', () => { if (tempStock > 0) { tempStock--; updateEditViewUI(); } });
         document.getElementById('save-btn').addEventListener('click', handleSaveStock);
-        document.getElementById('delete-item-btn').addEventListener('click', handleDeleteItem); // Nuevo event listener
+        document.getElementById('delete-item-btn').addEventListener('click', handleDeleteItem);
         document.getElementById('back-btn-from-edit').addEventListener('click', () => { window.location.hash = ''; });
         document.getElementById('back-btn-from-history').addEventListener('click', () => { window.location.hash = ''; });
         window.addEventListener('hashchange', router);
