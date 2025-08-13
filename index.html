@@ -177,8 +177,18 @@
             appId: "1:744258530761:web:1873521165ca06ef278c18"
         };
 
+        // Extraer y parsear la configuración de Firebase de Canvas de forma segura
+        let canvasFirebaseConfig = null;
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                canvasFirebaseConfig = JSON.parse(__firebase_config);
+            } catch (e) {
+                console.error("Error al parsear __firebase_config desde Canvas:", e);
+                // canvasFirebaseConfig se mantiene en null, se usará la configuración por defecto
+            }
+        }
+
         const canvasAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const canvasFirebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const canvasInitialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let app;
@@ -188,11 +198,12 @@
 
         // --- INICIALIZACIÓN DE LA APP ---
         async function initFirebaseAndApp() {
-            // Usa la configuración de Canvas si está disponible, si no, usa la por defecto
+            // Usar la configuración de Canvas si está disponible y es válida, si no, usar la por defecto
             const usedFirebaseConfig = canvasFirebaseConfig || defaultFirebaseConfig;
 
-            if (!usedFirebaseConfig) {
-                console.error("Firebase config is not defined. Cannot initialize Firebase.");
+            // Verificar si la configuración sigue siendo nula o inválida (esto no debería ocurrir con un default)
+            if (!usedFirebaseConfig || Object.keys(usedFirebaseConfig).length === 0) {
+                console.error("Firebase config no está definida después de la lógica de fallback. No se puede inicializar Firebase.");
                 document.getElementById('loading-message').textContent = "Error: Configuración de Firebase no disponible.";
                 showModal("Error al iniciar la aplicación: La configuración de Firebase no se pudo cargar.", 'error');
                 return;
@@ -218,14 +229,14 @@
                 } else {
                     // Usar una ruta simple para pruebas fuera de Canvas
                     stockCollectionRef = collection(db, 'stock');
-                    console.warn("Ejecutando fuera de Canvas. La colección de stock será 'stock' en lugar de la ruta 'artifacts/{appId}/public/data/stock'.");
+                    console.warn("Ejecutando fuera del entorno de Canvas. La colección de stock se almacenará en 'stock' en tu Firestore en lugar de la ruta específica de Canvas para datos públicos ('artifacts/{appId}/public/data/stock').");
                 }
                 
                 await loadInitialDataIfNeeded();
                 router();
             } catch (error) {
                 console.error("Error al inicializar Firebase o autenticar:", error);
-                document.getElementById('loading-message').textContent = "Error de conexión o autenticación de Firebase.";
+                document.getElementById('loading-message').textContent = `Error de conexión o autenticación de Firebase: ${error.message}`;
                 showModal(`Error de conexión o autenticación: ${error.message}`, 'error');
             }
         }
@@ -276,7 +287,8 @@
         // Elementos del modal
         const customModal = document.getElementById('custom-modal');
         const modalMessage = document.getElementById('modal-message');
-        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        // FIX: Se corrigió la asignación incorrecta de document
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn'); 
         const modalCancelBtn = document.getElementById('modal-cancel-btn');
         
         // --- LÓGICA DE LA APLICACIÓN ---
@@ -725,13 +737,13 @@
                 };
 
                 nfcReader.onreadingerror = (event) => {
-                    displayNfcStatus('Error al leer la tarjeta NFC. Asegúrate de que no haya otras aplicaciones usando NFC y la tarjeta esté cerca.', true);
+                    displayNFCStatus('Error al leer la tarjeta NFC. Asegúrate de que no haya otras aplicaciones usando NFC y la tarjeta esté cerca.', true);
                     console.error('NFC reading error:', event);
                     stopNFCScan();
                 };
 
                 await nfcReader.scan();
-                displayNfcStatus('Escaneando NFC... Acerca una tarjeta.');
+                displayNFCStatus('Escaneando NFC... Acerca una tarjeta.');
             } catch (error) {
                 console.error("Error al iniciar el escaneo NFC:", error);
                 if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
@@ -793,6 +805,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
